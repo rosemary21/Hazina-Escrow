@@ -149,6 +149,9 @@ async function _executeResearch(
       datasetId: dataset.id,
       txHash,
       amount: dataset.pricePerQuery,
+      sellerPaid: true,
+      sellerAmount: parseFloat((dataset.pricePerQuery * 0.95).toFixed(7)),
+      sellerTxHash: txHash,
       buyerQuery: `[Agent Job ${jobId}] ${query}`,
       timestamp: new Date().toISOString(),
     });
@@ -194,6 +197,7 @@ async function _executeResearch(
     datasetId: 'agent-job',
     txHash: humanTxHash,
     amount: AGENT_FEE_USDC,
+    sellerPaid: true,
     buyerQuery: query,
     aiSummary: report.rawAnalysis,
     timestamp: new Date().toISOString(),

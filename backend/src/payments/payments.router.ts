@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import {
   getDataset,
+  getUnpaidTransactions,
   updateDataset,
   addTransaction,
   txHashUsed,
@@ -12,8 +13,11 @@ import { generateDataSummary } from "../ai/claude.service";
 import { notifySeller } from "../webhooks/webhook.service";
 import { getEscrow, releaseEscrow, refundEscrow, usdcToStroops } from "../lib/contract.client";
 import { sanitizeUserText } from "../common/sanitize";
+import { requireAdminKey } from "../common/auth.middleware";
 
 export const paymentsRouter = Router();
+
+const SELLER_PAYOUT_WARNING = "SELLER_PAYOUT_PENDING";
 
 const verifySchema = z.object({
   escrowId: z.number().int().nonnegative(),
@@ -232,6 +236,7 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
     // Release funds on-chain: contract pays 95% to seller, 5% to admin
     let releaseTxHash: string | undefined;
     const sellerAmount = parseFloat((dataset.pricePerQuery * 0.95).toFixed(7));
+    let sellerPaid = false;
     try {
       releaseTxHash = await releaseEscrow(escrowId);
       console.log(`[Escrow] Released escrow #${escrowId} → ${releaseTxHash}`);
@@ -242,7 +247,7 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
     // Update dataset stats
     await updateDataset(dataset.id, {
       queriesServed: dataset.queriesServed + 1,
-      totalEarned: parseFloat((dataset.totalEarned + sellerAmount).toFixed(4)),
+      totalEarned: parseFloat((dataset.totalEarned + (sellerPaid ? sellerAmount : 0)).toFixed(4)),
     });
 
     // Log transaction (escrowKey used as txHash for replay protection)
@@ -251,6 +256,10 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
       datasetId: dataset.id,
       txHash: escrowKey,
       amount: dataset.pricePerQuery,
+      sellerPaid,
+      sellerAmount,
+      sellerTxHash,
+      sellerPayoutError,
       buyerQuery: buyerQuestion,
       aiSummary: summary,
       timestamp: new Date().toISOString(),
@@ -276,12 +285,14 @@ paymentsRouter.post("/verify/:id", validateBody(verifySchema), async (req: Reque
 
     return res.json({
       success: true,
+      warning: sellerPaid ? null : SELLER_PAYOUT_WARNING,
       data: dataset.data,
       ai: { summary, answer },
       transaction: {
         escrowId,
         amount: dataset.pricePerQuery,
-        sellerReceived: sellerAmount,
+        sellerReceived: sellerPaid ? sellerAmount : 0,
+        sellerPaid,
         platformFee: parseFloat((dataset.pricePerQuery * 0.05).toFixed(4)),
         releaseTxHash: releaseTxHash ?? null,
       },
@@ -323,6 +334,8 @@ paymentsRouter.post("/verify/:id/demo", validateBody(verifyDemoSchema), async (r
     datasetId: dataset.id,
     txHash: `demo-${Date.now()}`,
     amount: dataset.pricePerQuery,
+    sellerPaid: true,
+    sellerAmount: parseFloat((dataset.pricePerQuery * 0.95).toFixed(7)),
     buyerQuery: buyerQuestion,
     aiSummary: summary,
     timestamp: new Date().toISOString(),
@@ -331,13 +344,32 @@ paymentsRouter.post("/verify/:id/demo", validateBody(verifyDemoSchema), async (r
   return res.json({
     success: true,
     demo: true,
+    warning: null,
     data: dataset.data,
     ai: { summary, answer },
     transaction: {
       hash: `demo-${Date.now()}`,
       amount: dataset.pricePerQuery,
       sellerReceived: parseFloat((dataset.pricePerQuery * 0.95).toFixed(4)),
+      sellerPaid: true,
       platformFee: parseFloat((dataset.pricePerQuery * 0.05).toFixed(4)),
     },
+  });
+});
+
+paymentsRouter.get("/admin/unpaid-sellers", requireAdminKey, (_req: Request, res: Response) => {
+  const unpaidTransactions = getUnpaidTransactions().map((transaction) => {
+    const dataset = getDataset(transaction.datasetId);
+    return {
+      ...transaction,
+      datasetName: dataset?.name ?? null,
+      sellerWallet: dataset?.sellerWallet ?? null,
+    };
+  });
+
+  return res.json({
+    success: true,
+    unpaidTransactions,
+    total: unpaidTransactions.length,
   });
 });
