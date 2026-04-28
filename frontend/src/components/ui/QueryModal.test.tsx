@@ -77,7 +77,10 @@ describe('QueryModal', () => {
       expect(api.initiateQuery).toHaveBeenCalledWith('ds-query-1');
     });
 
-    // Demo mode is ON by default — button reads "Get AI Analysis"
+    // Demo mode is OFF by default — check it to enable demo mode
+    fireEvent.click(screen.getByLabelText(/Demo mode/i));
+
+    // Now in demo mode — button reads "Get AI Analysis"
     const analyzeButton = await waitFor(() =>
       screen.getByRole('button', { name: 'Get AI Analysis' }),
     );
@@ -124,6 +127,9 @@ describe('QueryModal', () => {
       expect(api.initiateQuery).toHaveBeenCalledWith('ds-query-1');
     });
 
+    // Check demo mode to enable it
+    fireEvent.click(screen.getByLabelText(/Demo mode/i));
+
     fireEvent.click(screen.getByRole('button', { name: 'Get AI Analysis' }));
 
     await waitFor(() => {
@@ -148,10 +154,7 @@ describe('QueryModal', () => {
       expect(api.initiateQuery).toHaveBeenCalled();
     });
 
-    // Demo mode starts ON — uncheck it to switch to real payment mode
-    fireEvent.click(screen.getByLabelText(/Demo mode/i));
-
-    // Now in real-payment mode: button is "Verify & Get Data" and disabled (no tx hash)
+    // Demo mode is OFF by default — button is "Verify & Get Data" and disabled (no tx hash)
     const verifyButton = await waitFor(() =>
       screen.getByRole('button', { name: 'Verify & Get Data' }),
     );

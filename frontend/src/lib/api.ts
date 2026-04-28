@@ -54,11 +54,6 @@ export const API_BASE_URL = RAW_API_URL
 const BASE = API_BASE_URL;
 const API_KEY = (import.meta.env.VITE_API_KEY ?? '').toString().trim();
 
-export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-export const AGENT_REQUEST_TIMEOUT_MS = 120_000;
-
-const API_KEY = (import.meta.env.VITE_API_KEY ?? '').toString().trim();
-
 interface RequestOptions extends RequestInit {
   /** Per-call override of the abort timeout, in milliseconds. */
   timeoutMs?: number;
