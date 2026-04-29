@@ -358,7 +358,7 @@ Edit `backend/.env`:
 
 ```bash
 PORT=3001
-FRONTEND_URL=http://localhost:5173
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 
 # Required
 ANTHROPIC_API_KEY=sk-ant-...
@@ -561,7 +561,8 @@ All seller wallets are funded Stellar testnet accounts with USDC trustlines, rea
 | `ESCROW_CONTRACT_ID` | No | Soroban contract address (for on-chain escrow integration) |
 | `PLATFORM_FEE` | No | Platform cut as decimal (default: 0.05) |
 | `PORT` | No | API port (default: 3001) |
-| `FRONTEND_URL` | No | CORS origin (default: http://localhost:5173) |
+| `CORS_ALLOWED_ORIGINS` | No | Comma-separated CORS origin whitelist (development default: http://localhost:5173) |
+| `FRONTEND_URL` | No | Legacy single CORS origin fallback when `CORS_ALLOWED_ORIGINS` is unset |
 
 ---
 

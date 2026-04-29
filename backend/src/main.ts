@@ -6,11 +6,11 @@ dotenv.config();
 initializeDatadog();
 initializeSentry();
 
-import express, { Request } from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
-import swaggerUi from 'swagger-ui-express';
+import _swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 
 import { datasetsRouter } from './datasets/datasets.router';
@@ -22,6 +22,7 @@ import { BackupScheduler } from './common/backup.scheduler';
 import { backupRouter, setBackupScheduler } from './common/backup.router';
 import { createCompressionMiddleware } from './common/compression';
 import { HORIZON_URL } from './lib/stellar.config';
+import { createCorsOptions } from './common/cors';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -31,7 +32,7 @@ app.use(createCompressionMiddleware());
 // Ensure client IP is derived correctly when running behind a reverse proxy.
 app.set('trust proxy', 1);
 
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
+app.use(cors(createCorsOptions()));
 app.use(express.json({ limit: '2mb' }));
 Sentry.setupExpressErrorHandler(app);
 
@@ -117,7 +118,7 @@ const swaggerOptions = {
   apis: ['./src/**/*.ts'], // Path to the API docs
 };
 
-const swaggerDocs = swaggerJsdoc(swaggerOptions);
+const _swaggerDocs = swaggerJsdoc(swaggerOptions);
 // Health check with service monitoring
 const HEALTH_TIMEOUT_MS = 3000;
 
