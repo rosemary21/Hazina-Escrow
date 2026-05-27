@@ -474,7 +474,7 @@ impl HazinaEscrow {
             ESCROW_BUMP_LEDGERS,
         );
 
-        let mut record: EscrowRecord = env
+        let record: EscrowRecord = env
             .storage()
             .persistent()
             .get(&EscrowKey::Record(escrow_id))
@@ -554,11 +554,11 @@ impl HazinaEscrow {
         }
     }
 
-    fn assert_valid_amount(env: &Env, amount: i128) {
+    fn assert_valid_amount(_env: &Env, amount: i128) {
         assert!(amount > 0, "Amount must be greater than zero");
     }
 
-    fn assert_valid_dataset_id(env: &Env, dataset_id: &String) {
+    fn assert_valid_dataset_id(_env: &Env, dataset_id: &String) {
         assert!(!dataset_id.is_empty(), "dataset_id cannot be empty");
     }
 
@@ -656,7 +656,7 @@ mod tests {
     };
 
     const INITIAL_BUYER_BALANCE: i128 = 10_000_000_000; // 1_000 units with 7 decimals
-    const MINIMAL_WASM: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+    const MINIMAL_WASM: &[u8] = include_bytes!("../target/wasm32-unknown-unknown/release/hazina_escrow.wasm");
 
     fn setup() -> (
         Env,
@@ -1200,11 +1200,7 @@ mod tests {
         let new_wasm_hash = env.deployer().upload_contract_wasm(Bytes::from_slice(&env, MINIMAL_WASM));
         client.upgrade(&admin, &new_wasm_hash);
 
-        let after: EscrowRecord = env
-            .storage()
-            .persistent()
-            .get(&EscrowKey::Record(escrow_id))
-            .unwrap();
+        let after = client.get_escrow(&escrow_id);
         assert_eq!(before, after);
     }
 
@@ -1294,7 +1290,7 @@ mod tests {
 
     #[test]
     fn test_get_escrow_count_returns_correct_number() {
-        let (env, client, admin, buyer, seller, usdc) = setup();
+        let (env, client, _admin, buyer, seller, usdc) = setup();
 
         // Initially zero escrows
         assert_eq!(client.get_escrow_count(), 0);

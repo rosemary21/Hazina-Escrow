@@ -5,6 +5,7 @@ import {
   DEFAULT_REQUEST_TIMEOUT_MS,
   AGENT_REQUEST_TIMEOUT_MS,
 } from './api';
+import { initEnv } from './env';
 
 function createFetchResponse(body: unknown) {
   return {
@@ -18,6 +19,13 @@ describe('api request throttling', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-25T00:00:00Z'));
     __resetRequestThrottleForTests();
+    // Mock environment variables for tests
+    vi.stubGlobal('import.meta.env', {
+      VITE_API_URL: 'http://localhost:3001',
+      VITE_API_KEY: 'test-key',
+      VITE_STELLAR_NETWORK: 'testnet',
+    });
+    initEnv();
   });
 
   afterEach(() => {

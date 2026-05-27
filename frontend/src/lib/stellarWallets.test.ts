@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { buildAlbedoPaymentUrl, buildFreighterPaymentUri } from './stellarWallets';
+import { initEnv } from './env';
 
 const payment = {
   paymentAddress: `G${'B'.repeat(55)}`,
@@ -8,6 +9,16 @@ const payment = {
 };
 
 describe('stellarWallets', () => {
+  beforeEach(() => {
+    // Mock environment variables for tests
+    vi.stubGlobal('import.meta.env', {
+      VITE_API_URL: 'http://localhost:3001',
+      VITE_API_KEY: 'test-key',
+      VITE_STELLAR_NETWORK: 'testnet',
+    });
+    initEnv();
+  });
+
   it('builds a Freighter-compatible SEP-7 payment URI', () => {
     const uri = buildFreighterPaymentUri(payment);
 
