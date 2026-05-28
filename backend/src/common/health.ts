@@ -1,4 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { getAnthropicModel } from '../ai/anthropic.config';
+import { getAllCircuitBreakerStats } from './circuit-breaker';
 
 interface HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';
@@ -11,6 +13,7 @@ interface HealthStatus {
       responseTime?: number;
     };
   };
+  circuitBreakers: ReturnType<typeof getAllCircuitBreakerStats>;
 }
 
 export async function checkHealth(): Promise<HealthStatus> {
@@ -20,7 +23,7 @@ export async function checkHealth(): Promise<HealthStatus> {
   };
 
   const hasError = Object.values(checks).some(
-    (check) => check.status === 'error' || check.status === 'unavailable'
+    check => check.status === 'error' || check.status === 'unavailable',
   );
 
   const status: HealthStatus['status'] = hasError ? 'degraded' : 'healthy';
@@ -30,6 +33,7 @@ export async function checkHealth(): Promise<HealthStatus> {
     timestamp,
     service: 'Hazina Escrow API',
     checks,
+    circuitBreakers: getAllCircuitBreakerStats(),
   };
 }
 
@@ -52,7 +56,7 @@ async function checkAnthropicService(): Promise<{
     // Make a lightweight API call to verify connectivity
     // Using Messages API with minimal tokens to check service availability
     await client.messages.countTokens({
-      model: 'claude-haiku-4-5-20251001',
+      model: getAnthropicModel(),
       messages: [{ role: 'user', content: 'health check' }],
     });
 

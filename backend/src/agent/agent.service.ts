@@ -3,16 +3,17 @@ import { getAllDatasets, getDataset, updateDataset, addTransaction, txHashUsed }
 import { verifyStellarPayment } from '../payments/stellar.service';
 import { sendUsdcPayment, getAgentPublicKey } from './agent.wallet';
 import { synthesizeResearch, parseRiskTolerance, parseBudget, ResearchReport } from '../ai/research.service';
+import { notifySeller } from '../webhooks/webhook.service';
 
 // Fee the agent charges the human (1 USDC flat)
-const AGENT_FEE_USDC = 1;
+export const AGENT_FEE_USDC = 1;
 
 // Dataset types the agent purchases and their roles in the report
-const SELLER_TYPES = [
-  { type: 'yield-data',    role: 'yieldData'    },
-  { type: 'whale-wallets', role: 'whaleData'    },
-  { type: 'risk-scores',   role: 'riskData'     },
-  { type: 'sentiment',     role: 'sentimentData' },
+export const SELLER_TYPES = [
+  { type: 'yield-data',    role: 'yieldData',     description: 'APY & protocol data' },
+  { type: 'whale-wallets', role: 'whaleData',     description: 'Whale wallet movements' },
+  { type: 'risk-scores',   role: 'riskData',      description: 'Protocol risk scores' },
+  { type: 'sentiment',     role: 'sentimentData', description: 'Social market sentiment' },
 ] as const;
 
 export interface AgentJob {
@@ -48,7 +49,7 @@ export async function runResearchAgent(
   humanTxHash: string
 ): Promise<AgentJob> {
   // 1. Verify human's 1 USDC payment to escrow wallet
-  if (txHashUsed(humanTxHash)) {
+  if (await txHashUsed(humanTxHash)) {
     throw new Error('Transaction hash already used');
   }
 
@@ -87,7 +88,7 @@ async function _executeResearch(
   const riskTolerance = parseRiskTolerance(query);
   const agentWallet = getAgentPublicKey();
 
-  const allDatasets = getAllDatasets();
+  const allDatasets = await getAllDatasets();
 
   // 2. Find the best dataset for each seller role
   const purchases: PurchaseRecord[] = [];
@@ -107,10 +108,14 @@ async function _executeResearch(
     if (demo) {
       // Demo: simulate payment, read data directly
       txHash = `demo-${seller.type}-${Date.now()}`;
-      console.log(`[Agent][Demo] Simulating payment of ${dataset.pricePerQuery} USDC → ${dataset.sellerWallet} for ${dataset.name}`);
+      console.log(
+        `[Agent][Demo] Simulating payment of ${dataset.pricePerQuery} USDC → ${dataset.sellerWallet} for ${dataset.name}`,
+      );
     } else {
       // Real: send USDC from agent wallet → seller wallet
-      console.log(`[Agent] Paying ${dataset.pricePerQuery} USDC → ${dataset.sellerWallet} for ${dataset.name}`);
+      console.log(
+        `[Agent] Paying ${dataset.pricePerQuery} USDC → ${dataset.sellerWallet} for ${dataset.name}`,
+      );
       const payment = await sendUsdcPayment({
         destinationAddress: dataset.sellerWallet,
         amount: dataset.pricePerQuery.toFixed(7),
@@ -133,27 +138,46 @@ async function _executeResearch(
     totalSpent += dataset.pricePerQuery;
 
     // Update dataset stats
-    updateDataset(dataset.id, {
+    await updateDataset(dataset.id, {
       queriesServed: dataset.queriesServed + 1,
       totalEarned: parseFloat((dataset.totalEarned + dataset.pricePerQuery * 0.95).toFixed(4)),
     });
 
     // Log individual transaction
-    addTransaction({
+    await addTransaction({
       id: `tx-agent-${uuidv4()}`,
       datasetId: dataset.id,
       txHash,
       amount: dataset.pricePerQuery,
+      sellerPaid: true,
+      sellerAmount: parseFloat((dataset.pricePerQuery * 0.95).toFixed(7)),
+      sellerTxHash: txHash,
       buyerQuery: `[Agent Job ${jobId}] ${query}`,
       timestamp: new Date().toISOString(),
     });
 
+    // Notify seller via webhook
+    notifySeller(dataset.sellerWallet, 'dataset.queried', {
+      datasetId: dataset.id,
+      datasetName: dataset.name,
+      type: dataset.type,
+      txHash,
+      amount: dataset.pricePerQuery,
+      agentJobId: jobId,
+      demo,
+    }).catch(() => {});
+
     // Read the actual data
-    const fresh = getDataset(dataset.id);
+    const fresh = await getDataset(dataset.id);
     collectedData[seller.role] = fresh?.data ?? {};
   }
 
   const agentProfit = parseFloat((AGENT_FEE_USDC - totalSpent).toFixed(4));
+
+  const datasetCosts: Record<string, number> = {};
+  purchases.forEach(p => {
+    datasetCosts[p.role] = p.amountPaid;
+  });
 
   // 3. Synthesise with Claude
   const report = await synthesizeResearch({
@@ -164,14 +188,16 @@ async function _executeResearch(
     whaleData:     collectedData['whaleData']      ?? {},
     riskData:      collectedData['riskData']       ?? {},
     sentimentData: collectedData['sentimentData']  ?? {},
+    datasetCosts,
   });
 
   // 4. Log the agent job as a transaction for audit trail
-  addTransaction({
+  await addTransaction({
     id: `tx-agent-job-${jobId}`,
     datasetId: 'agent-job',
     txHash: humanTxHash,
     amount: AGENT_FEE_USDC,
+    sellerPaid: true,
     buyerQuery: query,
     aiSummary: report.rawAnalysis,
     timestamp: new Date().toISOString(),
