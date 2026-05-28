@@ -147,7 +147,17 @@ export default function MarketplacePage() {
       updatedParams.set('page', '1');
       setSearchParams(updatedParams);
     }
-  }, [search, sort, selectedTypes, minPrice, maxPrice, minQueries, page, searchParams, setSearchParams]);
+  }, [
+    search,
+    sort,
+    selectedTypes,
+    minPrice,
+    maxPrice,
+    minQueries,
+    page,
+    searchParams,
+    setSearchParams,
+  ]);
 
   const currentPage = Math.min(page, totalPages);
 
@@ -422,7 +432,7 @@ export default function MarketplacePage() {
               <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <button
                   type="button"
-                  onClick={() => setPage(currentPage - 1)}
+                  onClick={() => setPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
                   aria-label={t('marketplace.pagination.previous')}
                   className={clsx(
@@ -456,7 +466,7 @@ export default function MarketplacePage() {
 
                 <button
                   type="button"
-                  onClick={() => setPage(currentPage + 1)}
+                  onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
                   aria-label={t('marketplace.pagination.next')}
                   className={clsx(
